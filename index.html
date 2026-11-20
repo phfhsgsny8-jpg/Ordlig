@@ -40,6 +40,7 @@
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
   .entry{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--bg)}
   .entry b{display:block;margin-bottom:6px}
+  input.pw{width:100%;margin-bottom:8px;border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;font-size:14px;background:var(--card);color:var(--ink)}
   textarea{width:100%;min-height:96px;resize:vertical;border:1px solid var(--line);border-radius:8px;
     padding:8px;font:14px/1.3 ui-monospace,Menlo,Consolas,monospace;background:var(--card);color:var(--ink)}
   .row{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
@@ -99,6 +100,10 @@
 <script>
 const NAMES = ["Stina","Nora","Lea","Samuel","Erik"];
 const MAX_GUESSES = 6;
+const PASSWORDS = {Stina:"orkide", Nora:"sparv", Lea:"hallon", Samuel:"paprika", Erik:"stjärt"};
+// false = ett sparat resultat för en dag kan inte skrivas över av personen själv
+const ALLOW_OVERWRITE = false;
+
 
 /* ---------- parsing & scoring ---------- */
 function parseResult(text){
@@ -218,7 +223,7 @@ function render(){
         <td>${esc(n)}</td>
         <td>${r?fmtG(r.guesses):"–"}</td>
         <td class="${r?(r.points===best&&best>0?"best":""):"miss"}">${r?r.points:"0 (missad)"}</td>
-        <td>${r?`<button class="del" data-del="${key(r.day,r.name)}">ta bort</button>`:""}</td>
+        <td></td>
       </tr>`).join("")}
     </table></div>`;
   }
@@ -243,7 +248,7 @@ function buildEntries(){
   document.getElementById("entries").innerHTML = NAMES.map(n=>`
     <div class="entry" data-name="${n}">
       <b>${n}</b>
-      <textarea placeholder="Klistra in Ordlig-resultatet här" aria-label="Resultat för ${n}"></textarea>
+      <input class="pw" type="text" autocomplete="off" placeholder="Ditt lösenord (ett ord)" aria-label="Lösenord för ${n}"><textarea placeholder="Klistra in Ordlig-resultatet här" aria-label="Resultat för ${n}"></textarea>
       <div class="row">
         <button data-save>Spara</button>
         <button class="ghost" data-clear>Rensa</button>
@@ -265,6 +270,9 @@ function buildEntries(){
       const p = parseResult(ta.value);
       if(!p){ setSt("Klistra in ett resultat först.","err"); return; }
       const name = el.dataset.name, existed = !!results[key(p.day,name)];
+      const pw = el.querySelector(".pw").value.trim().toLowerCase();
+      if(pw !== PASSWORDS[name]){ setSt("Fel lösenord.","err"); return; }
+      if(existed && !ALLOW_OVERWRITE){ setSt(`Nr ${p.day} är redan sparat och kan inte ändras.`,"err"); return; }
       btn.disabled = true;
       try{
         await store.save({ name, day:p.day, guesses:p.guesses, points:p.points, savedAt:Date.now() });
