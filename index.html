@@ -65,10 +65,6 @@
   .tablewrap{overflow-x:auto}
   .rules{font-size:13px;color:var(--muted)}
   .empty{color:var(--muted);font-size:14px;padding:6px 0}
-  .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
-  .modal[hidden]{display:none}
-  .modal .box{background:var(--card);color:var(--ink);border-radius:16px;padding:24px 28px;max-width:360px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.4)}
-  .modal .box p{font-size:22px;font-weight:700;margin:0 0 16px}
 </style>
 </head>
 <body>
@@ -101,7 +97,6 @@
   </div>
 </div>
 
-<div class="modal" id="modal" hidden><div class="box"><p id="modaltext"></p><button id="modalok">OK</button></div></div>
 <script>
 const NAMES = ["Stina","Nora","Lea","Samuel","Erik"];
 const MAX_GUESSES = 6;
@@ -133,7 +128,7 @@ function setNotice(msg){
 
 // Klistra in adressen till din Firebase Realtime Database här (se instruktionerna), t.ex.
 // "https://ordlig-gruppen-default-rtdb.europe-west1.firebasedatabase.app"
-const DB_URL = "https://ordlig-3842a-default-rtdb.europe-west1.firebasedatabase.app";
+const DB_URL = "https://ordlig-3842a-default-rtdb.europe-west1.firebasedatabase.app/";
 
 async function initStore(){
   if(DB_URL){
@@ -280,13 +275,11 @@ function buildEntries(){
       if(existed && !ALLOW_OVERWRITE){ setSt(`Nr ${p.day} är redan sparat och kan inte ändras.`,"err"); return; }
       btn.disabled = true;
       try{
-        const pts = name==="Erik" ? 1 : p.points;
-        await store.save({ name, day:p.day, guesses:p.guesses, points:pts, savedAt:Date.now() });
-        results[key(p.day,name)] = { name, day:p.day, guesses:p.guesses, points:pts };
+        await store.save({ name, day:p.day, guesses:p.guesses, points:p.points, savedAt:Date.now() });
+        results[key(p.day,name)] = { name, day:p.day, guesses:p.guesses, points:p.points };
         selectedDay = p.day; render();
         ta.value = "";
-        if(name==="Erik") showPopup("Omöjligt, du får ett poäng");
-        setSt(existed ? `Ersatte tidigare resultat för nr ${p.day}.` : `Sparat: nr ${p.day}, ${pts} poäng.`,"ok");
+        setSt(existed ? `Ersatte tidigare resultat för nr ${p.day}.` : `Sparat: nr ${p.day}, ${p.points} poäng.`,"ok");
       }catch(e){
         setSt("Kunde inte spara: "+(e && e.message || e),"err");
       }
@@ -304,12 +297,6 @@ document.addEventListener("click", async e=>{
     catch(err){ setNotice("Kunde inte ta bort: "+(err && err.message || err)); }
   }
 });
-
-function showPopup(msg){
-  document.getElementById("modaltext").textContent = msg;
-  document.getElementById("modal").hidden = false;
-}
-document.getElementById("modalok").addEventListener("click", ()=>{ document.getElementById("modal").hidden = true; });
 
 buildEntries();
 render();
