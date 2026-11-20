@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ordlig – gruppens poäng</title>
+<style>
+  :root{
+    --bg:#f6f5f1; --card:#ffffff; --ink:#1d1d1b; --muted:#6b6a64; --line:#e4e2da;
+    --green:#4c9a4f; --green-soft:#e3f1e3; --yellow:#e0b83a; --accent:#2f6b3a;
+    --bar:#cfe6cf;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#161614; --card:#201f1d; --ink:#f0eee8; --muted:#a09e95; --line:#34322e;
+      --green:#6fbf73; --green-soft:#23352a; --yellow:#e6c458; --accent:#8fd194; --bar:#2c4a31; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:20px 16px 60px}
+  h1{font-size:26px;margin:4px 0 2px;letter-spacing:-.01em}
+  h2{font-size:17px;margin:0 0 12px}
+  .sub{color:var(--muted);margin:0 0 20px;font-size:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:18px}
+  .notice{background:#fff4d6;color:#5b4a10;border:1px solid #ecd48a;border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:16px}
+  @media (prefers-color-scheme: dark){ .notice{background:#3a3217;color:#f0dfa0;border-color:#6b5a1f} }
+
+  /* leaderboard */
+  .lb{list-style:none;margin:0;padding:0}
+  .lb li{position:relative;display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:center;
+    padding:12px;border-radius:10px;margin-bottom:8px;overflow:hidden;border:1px solid var(--line)}
+  .lb .bar{position:absolute;left:0;top:0;bottom:0;background:var(--bar);z-index:0;transition:width .4s}
+  .lb li>*:not(.bar){position:relative;z-index:1}
+  .rank{font-size:20px;text-align:center}
+  .pname{font-weight:650;font-size:17px}
+  .meta{color:var(--muted);font-size:13px}
+  .pts{font-size:24px;font-weight:700;text-align:right;line-height:1}
+  .pts small{display:block;font-size:11px;font-weight:500;color:var(--muted);margin-top:3px}
+
+  /* paste cards */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+  .entry{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--bg)}
+  .entry b{display:block;margin-bottom:6px}
+  textarea{width:100%;min-height:96px;resize:vertical;border:1px solid var(--line);border-radius:8px;
+    padding:8px;font:14px/1.3 ui-monospace,Menlo,Consolas,monospace;background:var(--card);color:var(--ink)}
+  .row{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+  button{font:inherit;font-size:14px;font-weight:600;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;
+    background:var(--accent);color:#fff}
+  button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:500}
+  button:disabled{opacity:.4;cursor:default}
+  .status{font-size:13px;color:var(--muted);min-height:18px;flex:1 1 100%}
+  .status.ok{color:var(--green)} .status.err{color:#c0392b}
+
+  /* day tabs + table */
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .tab{border:1px solid var(--line);background:transparent;color:var(--ink);font-weight:500;padding:6px 12px;border-radius:999px}
+  .tab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--muted);font-weight:600;font-size:13px}
+  td.best{color:var(--green);font-weight:700}
+  td.miss{color:var(--muted)}
+  .del{background:none;color:var(--muted);padding:0 4px;font-size:12px;font-weight:400;text-decoration:underline;border-radius:0}
+  .tablewrap{overflow-x:auto}
+  .rules{font-size:13px;color:var(--muted)}
+  .empty{color:var(--muted);font-size:14px;padding:6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🟩 Ordlig – gruppens poäng</h1>
+  <p class="sub">Klistra in ditt resultat under ditt namn. Färre gissningar ger fler poäng.</p>
+
+  <div id="notice" class="notice" hidden></div>
+
+  <div class="card">
+    <h2>Totalställning</h2>
+    <ol class="lb" id="lb"></ol>
+    <p class="rules">Poäng per dag: 1/6 = 6 p, 2/6 = 5 p, 3/6 = 4 p, 4/6 = 3 p, 5/6 = 2 p, 6/6 = 1 p. Misslyckad (X/6) eller missad dag = 0 p.</p>
+  </div>
+
+  <div class="card">
+    <h2>Lägg till resultat</h2>
+    <div class="grid" id="entries"></div>
+  </div>
+
+  <div class="card">
+    <h2>Dagens ställning</h2>
+    <div class="tabs" id="tabs"></div>
+    <div id="daytable"></div>
+  </div>
+
+  <div class="card">
+    <h2>Alla dagar</h2>
+    <div class="tablewrap" id="alltable"></div>
+  </div>
+</div>
+
+<script>
+const NAMES = ["Stina","Nora","Lea","Samuel","Erik"];
+const MAX_GUESSES = 6;
+
+/* ---------- parsing & scoring ---------- */
+function parseResult(text){
+  const m = /nr\s*\.?\s*(\d+)\D{0,20}?([1-6xX])\s*\/\s*6/i.exec(text || "");
+  if(!m) return null;
+  const day = parseInt(m[1],10);
+  const g = m[2].toUpperCase()==="X" ? null : parseInt(m[2],10);
+  return { day, guesses:g, points: g===null ? 0 : (MAX_GUESSES + 1 - g) };
+}
+
+/* ---------- storage: shared db if available, else this browser only ---------- */
+let results = {};            // key "day_name" -> {name, day, guesses, points}
+let store = null;            // {save(rec), remove(key)}
+let selectedDay = null;
+
+function key(day,name){ return day+"_"+name; }
+
+function setNotice(msg){
+  const n = document.getElementById("notice");
+  if(msg){ n.textContent = msg; n.hidden = false; } else n.hidden = true;
+}
+
+// Klistra in adressen till din Firebase Realtime Database här (se instruktionerna), t.ex.
+// "https://ordlig-gruppen-default-rtdb.europe-west1.firebasedatabase.app"
+const DB_URL = "https://ordlig-3842a-default-rtdb.europe-west1.firebasedatabase.app";
+
+async function initStore(){
+  if(DB_URL){
+    const base = DB_URL.replace(/\/$/,"");
+    const load = async ()=>{
+      try{
+        const r = await fetch(base+"/scores.json");
+        if(!r.ok) throw new Error("HTTP "+r.status);
+        const data = (await r.json()) || {};
+        const next = {};
+        Object.values(data).forEach(v=>{
+          if(v && NAMES.includes(v.name) && Number.isInteger(v.day)) next[key(v.day,v.name)] = v;
+        });
+        results = next; setNotice(""); render();
+      }catch(e){ setNotice("Kunde inte hämta delad data: "+e.message); }
+    };
+    store = {
+      save: async rec=>{
+        const r = await fetch(`${base}/scores/${key(rec.day,rec.name)}.json`,{method:"PUT",body:JSON.stringify(rec)});
+        if(!r.ok) throw new Error("HTTP "+r.status);
+      },
+      remove: async k=>{
+        const r = await fetch(`${base}/scores/${k}.json`,{method:"DELETE"});
+        if(!r.ok) throw new Error("HTTP "+r.status);
+      }
+    };
+    await load();
+    setInterval(load, 15000);
+    return;
+  }
+  // Ingen databas inställd: sparar bara i den här webbläsaren
+  setNotice("Ingen delad databas är inställd – resultat sparas bara i den här webbläsaren.");
+  try { results = JSON.parse(localStorage.getItem("ordlig-scores")||"{}"); } catch(e){ results = {}; }
+  const persist = ()=>{ try{ localStorage.setItem("ordlig-scores", JSON.stringify(results)); }catch(e){} };
+  store = {
+    save: async rec => { results[key(rec.day,rec.name)] = rec; persist(); render(); },
+    remove: async k => { delete results[k]; persist(); render(); }
+  };
+  render();
+}
+
+/* ---------- derived data ---------- */
+function allDays(){
+  return [...new Set(Object.values(results).map(r=>r.day))].sort((a,b)=>b-a);
+}
+function totals(){
+  return NAMES.map(n=>{
+    const rs = Object.values(results).filter(r=>r.name===n);
+    const pts = rs.reduce((s,r)=>s+r.points,0);
+    const solved = rs.filter(r=>r.guesses!==null);
+    const avg = solved.length ? solved.reduce((s,r)=>s+r.guesses,0)/solved.length : null;
+    return { name:n, pts, played:rs.length, avg };
+  }).sort((a,b)=> b.pts-a.pts || (a.avg??99)-(b.avg??99) || a.name.localeCompare(b.name,"sv"));
+}
+function rankLabel(i, list){
+  // equal points -> equal rank
+  let r = i; while(r>0 && list[r-1].pts===list[i].pts) r--;
+  return ["🥇","🥈","🥉"][r] || String(r+1);
+}
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmtG = g => g===null ? "X" : g+"/6";
+
+/* ---------- render ---------- */
+function render(){
+  const days = allDays();
+  if(selectedDay===null || !days.includes(selectedDay)) selectedDay = days[0] ?? null;
+
+  // leaderboard
+  const t = totals(), max = Math.max(1, ...t.map(x=>x.pts));
+  document.getElementById("lb").innerHTML = t.map((x,i)=>`
+    <li>
+      <div class="bar" style="width:${(x.pts/max*100).toFixed(1)}%"></div>
+      <div class="rank">${rankLabel(i,t)}</div>
+      <div><div class="pname">${esc(x.name)}</div>
+        <div class="meta">${x.played} ${x.played===1?"dag":"dagar"} spelade${x.avg!==null?` · snitt ${x.avg.toFixed(2).replace(".",",")} gissningar`:""}</div></div>
+      <div class="pts">${x.pts}<small>poäng</small></div>
+    </li>`).join("");
+
+  // tabs + day table
+  document.getElementById("tabs").innerHTML = days.length
+    ? days.slice(0,14).map(d=>`<button class="tab ${d===selectedDay?"on":""}" data-day="${d}">Nr ${d}</button>`).join("")
+    : "";
+  const dt = document.getElementById("daytable");
+  if(selectedDay===null){ dt.innerHTML = `<div class="empty">Inga resultat inlagda ännu.</div>`; }
+  else{
+    const rows = NAMES.map(n=>({n, r:results[key(selectedDay,n)]}))
+      .sort((a,b)=>(b.r?.points??-1)-(a.r?.points??-1) || a.n.localeCompare(b.n,"sv"));
+    const best = Math.max(...rows.map(x=>x.r?.points??0));
+    dt.innerHTML = `<div class="tablewrap"><table>
+      <tr><th>Namn</th><th>Gissningar</th><th>Poäng</th><th></th></tr>
+      ${rows.map(({n,r})=>`<tr>
+        <td>${esc(n)}</td>
+        <td>${r?fmtG(r.guesses):"–"}</td>
+        <td class="${r?(r.points===best&&best>0?"best":""):"miss"}">${r?r.points:"0 (missad)"}</td>
+        <td>${r?`<button class="del" data-del="${key(r.day,r.name)}">ta bort</button>`:""}</td>
+      </tr>`).join("")}
+    </table></div>`;
+  }
+
+  // all days matrix
+  const at = document.getElementById("alltable");
+  at.innerHTML = days.length ? `<table>
+    <tr><th>Dag</th>${NAMES.map(n=>`<th>${esc(n)}</th>`).join("")}</tr>
+    ${days.map(d=>{
+      const best = Math.max(...NAMES.map(n=>results[key(d,n)]?.points??0));
+      return `<tr><td>Nr ${d}</td>${NAMES.map(n=>{
+        const r = results[key(d,n)];
+        return r ? `<td class="${r.points===best&&best>0?"best":""}">${r.points}</td>` : `<td class="miss">0</td>`;
+      }).join("")}</tr>`;
+    }).join("")}
+    <tr><th>Totalt</th>${NAMES.map(n=>`<th>${t.find(x=>x.name===n).pts}</th>`).join("")}</tr>
+  </table>` : `<div class="empty">Inget att visa ännu.</div>`;
+}
+
+/* ---------- paste cards (built once so typing isn't reset) ---------- */
+function buildEntries(){
+  document.getElementById("entries").innerHTML = NAMES.map(n=>`
+    <div class="entry" data-name="${n}">
+      <b>${n}</b>
+      <textarea placeholder="Klistra in Ordlig-resultatet här" aria-label="Resultat för ${n}"></textarea>
+      <div class="row">
+        <button data-save>Spara</button>
+        <button class="ghost" data-clear>Rensa</button>
+        <div class="status"></div>
+      </div>
+    </div>`).join("");
+
+  document.querySelectorAll(".entry").forEach(el=>{
+    const ta = el.querySelector("textarea"), st = el.querySelector(".status"), btn = el.querySelector("[data-save]");
+    const setSt = (m,c)=>{ st.textContent = m; st.className = "status "+(c||""); };
+    ta.addEventListener("input", ()=>{
+      if(!ta.value.trim()){ setSt(""); btn.disabled = false; return; }
+      const p = parseResult(ta.value);
+      if(!p){ setSt("Hittar inte \"nr …\" och \"x/6\" i texten.","err"); btn.disabled = true; }
+      else { setSt(`Nr ${p.day}: ${fmtG(p.guesses)} → ${p.points} poäng`,"ok"); btn.disabled = false; }
+    });
+    el.querySelector("[data-clear]").addEventListener("click", ()=>{ ta.value=""; setSt(""); btn.disabled=false; });
+    btn.addEventListener("click", async ()=>{
+      const p = parseResult(ta.value);
+      if(!p){ setSt("Klistra in ett resultat först.","err"); return; }
+      const name = el.dataset.name, existed = !!results[key(p.day,name)];
+      btn.disabled = true;
+      try{
+        await store.save({ name, day:p.day, guesses:p.guesses, points:p.points, savedAt:Date.now() });
+        results[key(p.day,name)] = { name, day:p.day, guesses:p.guesses, points:p.points };
+        selectedDay = p.day; render();
+        ta.value = "";
+        setSt(existed ? `Ersatte tidigare resultat för nr ${p.day}.` : `Sparat: nr ${p.day}, ${p.points} poäng.`,"ok");
+      }catch(e){
+        setSt("Kunde inte spara: "+(e && e.message || e),"err");
+      }
+      btn.disabled = false;
+    });
+  });
+}
+
+document.addEventListener("click", async e=>{
+  const tab = e.target.closest("[data-day]");
+  if(tab){ selectedDay = parseInt(tab.dataset.day,10); render(); return; }
+  const del = e.target.closest("[data-del]");
+  if(del){
+    try{ await store.remove(del.dataset.del); delete results[del.dataset.del]; render(); }
+    catch(err){ setNotice("Kunde inte ta bort: "+(err && err.message || err)); }
+  }
+});
+
+buildEntries();
+render();
+initStore();
+</script>
+</body>
+</html>
